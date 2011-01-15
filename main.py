@@ -8,146 +8,39 @@ from gdata.gauth import ClientLoginToken
 from signal import SIGTERM
 from getpass import getpass
 import sys, os, time, atexit, argparse
-from os import mkdir
-from os import remove
-from os.path import expanduser
-from os.path import isdir
 
 import pyinotify
 import sqlite3
 
-class Daemon(object):
-    """
-    A generic daemon class
-
-    Usage: subclass the Daemon class and override the run method
-    """
-    def __init__(self, pidfile, stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
-        self.stdin = stdin
-        self.stdout = stdout
-        self.stderr = stderr
-        self.pidfile = pidfile
-
-    def daemonize(self):
-        """
-        do the UNIX double-fork magic, see Stevens' "Advanced Programming in the
-        UNIX Environment" for details (ISBN 0201563177)
-        http://www.erlenstar.demon.co.uk/unix/faq_2.html#SEC16
-        """
-        try:
-            pid = os.fork()
-            if pid > 0:
-                #exit first parent
-                sys.exit(0)
-        except OSError, e:
-            sys.stderr.write("fork #1 failed: %d (%s)\n" % (e.errno, e.strerror))
-            sys.exit(1)
-
-        # decouple from parent environment
-        os.chdir("/")
-        os.setsid()
-        os.umask(0)
-
-        # do second fork
-        try:
-            pid = os.fork()
-            if pid > 0:
-                # exit from second parent
-                sys.exit(0)
-        except OSError, e:
-            sys.stderr.write("fork #2 failed: %d (%s)\n" % (e.errno, e.strerror))
-            sys.exit(1)
-
-        #redirect standard file descriptors
-        sys.stdout.flush()
-        sys.stderr.flush()
-        si = file(self.stdin, 'r')
-        so = file(self.stdout, 'a+')
-        se = file(self.stderr, 'a+', 0)
-        os.dup2(si.fileno(), sys.stdin.fileno())
-        os.dup2(so.fileno(), sys.stdout.fileno())
-        os.dup2(se.fileno(), sys.stderr.fileno())
-
-        #write pid file
-        atexit.register(self.delpid)
-        pid = str(os.getpid())
-        file(self.pidfile, 'w+').write("%s\n" % pid)
-
-    def delpid(self):
-        os.remove(self.pidfile)
-
-    def start(self):
-        """
-        Start the daemon
-        """
-        # Check for a pidfile to see if the daemon already runs
-        try:
-            pf = file(self.pidfile, 'r')
-            pid = int(pf.read().strip())
-            pf.close()
-        except IOError:
-            pid = None
-
-        if pid:
-            message = "pidfile %s already exists. Daemon already running?\n"
-            sys.stderr.write(message % self.pidfile)
-            sys.exit(1)
-
-        # Start the Daemon
-        self.daemonize()
-        self.run()
-
-    def stop(self):
-        """
-        Stop the daemon
-        """
-        # get the pid from the pidfile
-        try:
-            pf = file(self.pidfile, 'r')
-            pid = int(pf.read().strip())
-            pf.close()
-        except IOError:
-            pid = None
-
-        if not pid:
-            message = "pidfile %s does not exist. Daemon not running?\n"
-            sys.stderr.write(message % self.pidfile)
-            return # not an error in a restart
-
-        # Try killing the daemon process
-        try:
-            while 1:
-                os.kill(pid, SIGTERM)
-                time.sleep(0.1)
-        except OSError, err:
-            err = str(err)
-            if err.find("No such process") > 0:
-                if os.path.exists(self.pidfile):
-                    os.remove(self.pidfile)
-            else:
-                print str(err)
-                sys.exit(1)
-
-    def restart(self):
-        """
-        Restart the daemon
-        """
-        self.stop()
-        self.start()
-
-    def run(self):
-        """
-        You should override this method when you subclass Daemon. It will be called after the process has been
-        daemonized by start() or restart().
-        """
-
 class DocDb(object):
-    db = None
+    """
+    Interface for interacting with the local sqlite databse
+    """
+    
+    db = None # Holds db connection once setDb is called
     
     def __init__(self):
+        """
+        nothing to be done here just yet. we're not initializing the database
+        here so that users of this class can control when and how often the
+        connection is initialized. This needed to be this way to allow some
+        threading since you can't operate on a connection that was created in
+        a different thread.
+        
+        @TODO: Determine if it might be more useful to instaniate a new object
+            each time a connection is needed in a thread.
+        """
         pass
     
     def _initDb(self):
+        """
+        Attempt to create the tables needed in the database. They will only be
+        created if they don't already exist. If the database needs to be 
+        updated, that should happen here.
+        
+        @TODO: Set a database version so it can be determined if this codes 
+            needs to be run without actually attempting it.
+        """
         CREATE_TOKEN_TABLE = '''create table token
         (token text, id int primary key)
         '''
@@ -157,20 +50,24 @@ class DocDb(object):
         
         try:
             self.db.execute(CREATE_TOKEN_TABLE)
-        except sqlite3.OperationalError, error:
-            pass
-            
-        try:
             self.db.execute(CREATE_DOCS_TABLE)
-        except sqlite3.OperationalError:
+        except sqlite3.OperationalError, error:
             pass
     
     def setDb(self, db_file):
+        """
+        Use this method to instantiate the database. This must be called in each
+        new thread that is created, otherwise, sqlite will yell at you.
+        """
         self.db_file = db_file
         self.db = sqlite3.connect(self.db_file, isolation_level=None)
         self._initDb()
         
     def getToken(self):
+        """
+        See if the user has previously authenticated and return that token. If
+        the user hasn't authenticated, return False.
+        """
         query = "SELECT token FROM token WHERE id = 1"
         res = self.db.execute(query).fetchone()
         if res:
@@ -178,14 +75,27 @@ class DocDb(object):
         return False
         
     def saveToken(self, token):
+        """
+        Save the auth token to the db. The table token should only ever have one
+        row where id = 1. This is the user's token. Later this can potentially 
+        be used to allow more than one use to be auth'd. But more likely, only
+        one user should be auth'd at a time.
+        """
         query = "INSERT OR REPLACE INTO token (token, id) VALUES (?, 1)"
         self.db.execute(query, (token,))
         
     def addDoc(self, doc, path):
+        """
+        Adds or replaces the given doc and associated path to the docs table.
+        """
         query = "INSERT OR REPLACE INTO docs (local_path, resource_id, etag, title) VALUES (?, ?, ?, ?)"
         self.db.execute(query, (path, doc.resource_id.text, doc.etag, doc.title.text))
         
     def getEtag(self, resource_id):
+        """
+        Get the etag by resource_id. Useful to see if the doc has changed on the
+        server. Returns False when a document isn't found.
+        """
         query = "SELECT etag FROM docs WHERE resource_id = ?"
         res = self.db.execute(query, (resource_id,)).fetchone()
         if res:
@@ -193,32 +103,52 @@ class DocDb(object):
         return False
         
     def getRowFromPath(self, path):
+        """
+        Get a row from the docs table by the path.
+        """
         query = "SELECT resource_id, etag, title FROM docs WHERE local_path = ?"
         res = self.db.execute(query, (path,)).fetchone()
         return res
         
     def resetEtag(self, doc):
+        """
+        Updates the given doc's etag. Useful after various sync operations.
+        """
         query = "UPDATE docs SET etag = ? WHERE resource_id = ?"
         self.db.execute(query, (doc.etag, doc.resource_id.text))
 
 class DocSync(object):
+    """
+    Handles the business logic of syncing. Every operation of syncing should be 
+    performed via an instance of DocSync.
+    """
+    
     client = gdata.docs.client.DocsClient(source='GreggoryHernandez-DocSync-v1')
-    home = expanduser('~')
+    home = os.path.expanduser('~')
     gdocs_folder = home +'/Google Docs'
     db_file = gdocs_folder +'/.db'
     db = DocDb()
     authd = False
     
     def __init__(self):
+        """
+        just setting stuff up.
+        """
         self.client.ssl = True
         self.client.http_client_debug = False
         self.createBaseFolder()
         
     def createBaseFolder(self):
-        if not isdir(self.gdocs_folder):
-            mkdir(gdocs_folder, 0755)
+        """
+        Make the ~/Google Docs folder exist if it doesn't already.
+        """
+        if not os.path.isdir(self.gdocs_folder):
+            os.mkdir(gdocs_folder, 0755)
             
     def start(self):
+        """
+        proxy method to get everything started.
+        """
         self._authorize()
         self._getEverything()
         self._watchFolder()
@@ -228,6 +158,9 @@ class DocSync(object):
         print 'started'
         
     def _watchFolder(self):
+        """
+        sets up the watching of the docs folder for changes.
+        """
         wm = pyinotify.WatchManager()
         wm.add_watch(self.gdocs_folder, pyinotify.IN_MODIFY, rec=True)
         handler = EventHandler(self)
@@ -235,6 +168,10 @@ class DocSync(object):
         notifier.start()
         
     def _authorize(self):
+        """
+        Make sure the user is authorized. Ask for username/password if needed.
+        @TODO: add a UI so that the daemon can get auth info.
+        """
         self.db.setDb(self.db_file)
         token = self.db.getToken()
         if not token:
@@ -248,6 +185,10 @@ class DocSync(object):
         self.authd = True
             
     def _getEverything(self):
+        """
+        Downloads all the docs if the remote version is different than the local
+        version.
+        """
         self.db.setDb(self.db_file)
         docs = self.client.GetEverything(uri='/feeds/default/private/full/-/document')
         for doc in docs:
@@ -261,9 +202,12 @@ class DocSync(object):
                     pass
             except:
                 print 'skipped:', path
-                remove(path)
+                os.remove(path)
         
     def updateDoc(self, path):
+        """
+        sends doc information to the corresponding doc on Google Docs.
+        """
         self.db.setDb(self.db_file)
         
         if not self.authd:
@@ -285,6 +229,9 @@ class DocSync(object):
         self.db.resetEtag(new_version)
         
 class EventHandler(pyinotify.ProcessEvent):
+    """
+    Houses all methods that respond to specific pyinotify events.
+    """
     def __init__(self, syncer):
         pyinotify.ProcessEvent.__init__(self)
         self.syncer = syncer
@@ -300,6 +247,9 @@ class EventHandler(pyinotify.ProcessEvent):
         self.runCommand(event)
         
 class SyncDaemon(Daemon):
+    """
+    Daemon object with basic initialization.
+    """
     def __init__(self):
         self.stdin   = '/dev/null'
         self.stdout  = '/tmp/sync.log'
@@ -309,7 +259,6 @@ class SyncDaemon(Daemon):
     def run(self):
         sync = DocSync()
         sync.start()
-        #sync.updateDoc('/home/gregg/Google Docs/SampleDoc.odt')
 
 if __name__ == "__main__":
     daemon = SyncDaemon()
@@ -327,7 +276,7 @@ if __name__ == "__main__":
         daemon.start()
     elif 'stop' == args.command:
         daemon.stop()
-        print 'stoped'
+        print 'stopped'
     elif 'restart' == args.command:
         daemon.restart()
     elif 'debug' == args.command:
