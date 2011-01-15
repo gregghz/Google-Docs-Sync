@@ -11,6 +11,7 @@ import sys, os, time, atexit, argparse
 
 import pyinotify
 import sqlite3
+from daemon import Daemon
 
 class DocDb(object):
     """
@@ -153,7 +154,8 @@ class DocSync(object):
         self._getEverything()
         self._watchFolder()
         
-        self._setPeriodicSync()
+        #TODO: make this work
+        #self._setPeriodicSync()
         
         print 'started'
         
