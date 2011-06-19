@@ -1,7 +1,30 @@
 Functionality
 -------------
-
 Google-Docs-Sync will download all documents from your Google account into .odt files. Any documents you edit and save will be uploaded again.
+
+Getting Started
+----------------
+usage: main.py [-h] {start,stop,restart,debug}
+
+positional arguments:
+  {start,stop,restart,debug}
+start: Start the sync in the background
+debug: Start the sync in the foreground
+stop: Stop the sync?
+restart: Restart the sync? What does this do?
+
+optional arguments:
+  -h, --help            show this help message and exit
+
+You should expect to see the following output:
+
+doriad@daviddesktop:~/Google-Docs-Sync$ ./main.py debug
+Username: david.l.doria
+Password:
+writing: /home/doriad/Google Docs/Test Document.odt
+started
+
+(it seems to pause here, is it supposed to continue running, waiting for local or remote files to change?)
 
 Linux
 -----------
