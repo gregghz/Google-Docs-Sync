@@ -151,7 +151,7 @@ class DocSync(object):
         proxy method to get everything started.
         """
         #self.authorize()
-        self._getEverything()
+        self.getEverything()
         self._watchFolder()
         
         #TODO: make this work
@@ -186,7 +186,7 @@ class DocSync(object):
             
         self.authd = True
             
-    def _getEverything(self):
+    def getEverything(self):
         """
         Downloads all the docs if the remote version is different than the local
         version.
@@ -269,7 +269,7 @@ if __name__ == "__main__":
     
     parser.add_argument('command',
                         action='store',
-                        choices=['start','stop','restart','debug'],
+                        choices=['start','stop','restart','debug','pull'],
                         help='What to do. Use debug to start in the foreground')
     
     args = parser.parse_args()
@@ -286,6 +286,9 @@ if __name__ == "__main__":
     elif 'debug' == args.command:
         daemon.sync.authorize()
         daemon.run()
+    elif 'pull' == args.command: #do not run the daemon, but rather just download the documents
+        daemon.sync.authorize()
+        daemon.sync.getEverything()
     else:
         print "Unkown Command"
         sys.exit(2)
