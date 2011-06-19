@@ -31,6 +31,10 @@ import atom.data
 import atom.http_core
 import gdata.gauth
 
+DEFAULT_BATCH_URL = ('http://www.google.com/m8/feeds/contacts/default/full'
+                     '/batch')
+DEFAULT_PROFILES_BATCH_URL = ('http://www.google.com'
+                              '/m8/feeds/profiles/default/full/batch')
 
 class ContactsClient(gdata.client.GDClient):
   api_version = '3'
@@ -38,6 +42,7 @@ class ContactsClient(gdata.client.GDClient):
   server = "www.google.com"
   contact_list = "default"
   auth_scopes = gdata.gauth.AUTH_SCOPES['cp']
+  ssl = True
 
 
   def __init__(self, domain=None, auth_token=None, **kwargs):
@@ -79,8 +84,8 @@ class ContactsClient(gdata.client.GDClient):
 
   def get_contact(self, uri, desired_class=gdata.contacts.data.ContactEntry,
                   auth_token=None, **kwargs):
-    return self.get_feed(uri, auth_token=auth_token, 
-                         desired_class=desired_class, **kwargs)
+    return self.get_entry(uri, auth_token=auth_token, 
+                          desired_class=desired_class, **kwargs)
 
 
   GetContact = get_contact
@@ -201,7 +206,7 @@ class ContactsClient(gdata.client.GDClient):
     Args:
         uri:  the group uri or id   
     """
-    return self.get(uri, desired_class=desired_class, auth_token=auth_token, **kwargs)
+    return self.get_entry(uri, desired_class=desired_class, auth_token=auth_token, **kwargs)
 
   GetGroup = get_group
 
@@ -380,7 +385,7 @@ class ContactsClient(gdata.client.GDClient):
 
   UpdateProfile = update_profile
 
-  def execute_batch(self, batch_feed, url, desired_class=None):
+  def execute_batch(self, batch_feed, url=DEFAULT_BATCH_URL, desired_class=None):
     """Sends a batch request feed to the server.
     
     Args:
@@ -490,6 +495,3 @@ class ContactsQuery(gdata.client.Query):
 class ProfilesQuery(gdata.client.Query):
   def __init__(self, feed=None):
     self.feed = feed or 'http://www.google.com/m8/feeds/profiles/default/full'
-    
-
-
