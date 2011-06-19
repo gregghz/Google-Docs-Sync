@@ -1,0 +1,19 @@
+Functionality
+-------------
+
+Google-Docs-Sync will download all documents from your Google account into .odt files. Any documents you edit and save will be uploaded again.
+
+Linux
+-----------
+Google-Docs-Sync will create a local folder called "Google Docs" in your ~/ directory. In linux that would be home/[username], and in OS X that would be User/[username]. In Windows, I *believe* that is your My Documents folder. However, this will fail when being run under OS X or Windows. Neither of those platforms have the requisite inotify service. Inotify provides filesystem monitoring so that the sync can detect when a local file has been changed and then send those changes to Google docs.
+
+Windows
+----------------
+I believe it will completely fail because Windows doesn't support the daemon module.
+
+OS X
+-----
+It might properly download all the docs, but when it tries to setup the bits to watch the local filesystem, it will fail.
+
+
+I would like support for those platforms. If you have the know how to accomplish this outside of Linux, please let me know!
