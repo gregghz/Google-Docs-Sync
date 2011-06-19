@@ -1,3 +1,5 @@
+import os, sys, atexit, signal, time
+
 class Daemon(object):
     """
     A generic daemon class
@@ -99,7 +101,7 @@ class Daemon(object):
         # Try killing the daemon process
         try:
             while 1:
-                os.kill(pid, SIGTERM)
+                os.kill(pid, signal.SIGTERM)
                 time.sleep(0.1)
         except OSError, err:
             err = str(err)

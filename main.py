@@ -144,13 +144,13 @@ class DocSync(object):
         Make the ~/Google Docs folder exist if it doesn't already.
         """
         if not os.path.isdir(self.gdocs_folder):
-            os.mkdir(gdocs_folder, 0755)
+            os.mkdir(self.gdocs_folder, 0755)
             
     def start(self):
         """
         proxy method to get everything started.
         """
-        self._authorize()
+        #self.authorize()
         self._getEverything()
         self._watchFolder()
         
@@ -169,7 +169,7 @@ class DocSync(object):
         notifier = pyinotify.ThreadedNotifier(wm, handler)
         notifier.start()
         
-    def _authorize(self):
+    def authorize(self):
         """
         Make sure the user is authorized. Ask for username/password if needed.
         @TODO: add a UI so that the daemon can get auth info.
@@ -257,10 +257,11 @@ class SyncDaemon(Daemon):
         self.stdout  = '/tmp/sync.log'
         self.stderr  = '/tmp/sync.log'
         self.pidfile = '/tmp/sync.pid'
+        
+        self.sync = DocSync()
     
     def run(self):
-        sync = DocSync()
-        sync.start()
+        self.sync.start()
 
 if __name__ == "__main__":
     daemon = SyncDaemon()
@@ -275,6 +276,7 @@ if __name__ == "__main__":
     
     # Execute the command
     if 'start' == args.command:
+        daemon.sync.authorize()
         daemon.start()
     elif 'stop' == args.command:
         daemon.stop()
@@ -282,6 +284,7 @@ if __name__ == "__main__":
     elif 'restart' == args.command:
         daemon.restart()
     elif 'debug' == args.command:
+        daemon.sync.authorize()
         daemon.run()
     else:
         print "Unkown Command"
