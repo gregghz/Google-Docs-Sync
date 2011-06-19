@@ -1,3 +1,5 @@
+import os, sys, atexit
+
 class Daemon(object):
     """
     A generic daemon class
