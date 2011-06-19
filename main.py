@@ -144,7 +144,7 @@ class DocSync(object):
         Make the ~/Google Docs folder exist if it doesn't already.
         """
         if not os.path.isdir(self.gdocs_folder):
-            os.mkdir(gdocs_folder, 0755)
+            os.mkdir(self.gdocs_folder, 0755)
             
     def start(self):
         """
