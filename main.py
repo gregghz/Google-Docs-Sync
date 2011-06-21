@@ -177,10 +177,6 @@ class Folder(object):
                 self.add_folder(e)
             elif is_doc:
                 self.add_doc(e)
-
-        print self.path
-        print self.docs
-        print
         
     def __repr__(self):
         return self.path
