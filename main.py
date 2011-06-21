@@ -11,6 +11,7 @@ import sys, os, time, atexit, argparse
 
 import pyinotify
 import sqlite3
+import urllib
 from daemon import Daemon
 
 class DocDb(object):
@@ -118,6 +119,87 @@ class DocDb(object):
         query = "UPDATE docs SET etag = ? WHERE resource_id = ?"
         self.db.execute(query, (doc.etag, doc.resource_id.text))
 
+class Folder(object):
+    subfolders = []
+    docs = []
+    parent = None
+    entry = None
+    client = None
+
+    home = os.path.expanduser('~')
+    gdocs_folder = home +'/Google Docs'
+    path = '/'
+
+    def __init__(self, entry, parent=None, client=None):
+        self.subfolders = []
+        self.docs = []
+        self.parent = parent
+        self.entry = entry
+        self.client = client
+        
+        # if no entry given, then assume this is the root
+        if entry is None:
+            feed = self.client.GetDocList(uri='/feeds/default/private/full/folder%3Aroot/contents/-/all')
+        else:
+            feed = self.client.GetDocList(uri=self.entry.content.src)
+        
+        # if it's not the root, set up the path properly
+        if entry is not None and parent is not None:
+            self.path = self.entry.title.text + '/'
+            self.path = parent.path + self.path
+            
+        # make the paths exist on the filesystem
+        # make sure to add self.gdocs_folder here
+        if not os.path.isdir(self.gdocs_folder + self.path):
+            os.mkdir(self.gdocs_folder + self.path, 0755)
+            
+        # run over each entry
+        for e in feed.entry:
+            is_folder = False
+            is_doc = False
+            
+            # find out what folder this belongs to
+            for link in e.link:
+                if link.rel == 'http://schemas.google.com/docs/2007#parent':
+                    #belongs_to = link.title
+                    pass
+        
+            # use this loop to find out if we're in a doc or folder
+            # @TODO: add PDFs and other types of files
+            for cat in e.category:
+                if cat.label == 'folder':
+                    is_folder = True
+                elif cat.label == 'document':
+                    is_doc = True
+
+            # add the folder or doc as appropriate
+            if is_folder:
+                self.add_folder(e)
+            elif is_doc:
+                self.add_doc(e)
+
+        print self.path
+        print self.docs
+        print
+        
+    def __repr__(self):
+        return self.path
+        
+    def add_folder(self, entry):
+        self.subfolders.append(Folder(entry, self, self.client))
+        
+    def add_doc(self, entry):
+        self.docs.append(Document(entry, self))
+        
+class Document(object):
+    doc = None
+
+    def __init__(self, doc, parent):
+        self.doc = doc
+        
+    def __repr__(self):
+        return self.doc.title.text
+
 class DocSync(object):
     """
     Handles the business logic of syncing. Every operation of syncing should be 
@@ -152,7 +234,7 @@ class DocSync(object):
         """
         #self.authorize()
         self._getEverything()
-        self._watchFolder()
+        #self._watchFolder()
         
         #TODO: make this work
         #self._setPeriodicSync()
@@ -192,19 +274,49 @@ class DocSync(object):
         version.
         """
         self.db.setDb(self.db_file)
-        docs = self.client.GetEverything(uri='/feeds/default/private/full/-/document')
-        for doc in docs:
-            path = self.gdocs_folder +'/'+ doc.title.text.replace('/', '-') +'.odt'
-            try:
-                if doc.etag != self.db.getEtag(doc.resource_id.text):
-                    print 'writing:', path
-                    self.client.Export(doc, path)
-                    self.db.addDoc(doc, path)
-                else:
-                    pass
-            except:
-                print 'skipped:', path
-                os.remove(path)
+        #feed = self.client.GetDocList(uri='/feeds/default/private/full/folder%3Aroot/contents/-/all')
+        
+        # build folder structure
+        root_folder = Folder(None, None, self.client)
+        #for entry in feed.entry:
+        #    is_folder = False
+        #    is_doc = False
+        #    has_parent = False
+        
+            # find out if current entry is a folder
+        #    for cat in entry.category:
+        #        if cat.label == 'folder':
+        #            is_folder = True
+        #        elif cat.label == 'document':
+        #            is_doc = True
+                    
+            # find out if current entry has a parent
+        #    for link in entry.link:
+        #        if link.rel == 'http://schemas.google.com/docs/2007#parent':
+        #            has_parent = True
+                    
+            # if no parent and is a folder, add as child folder of root
+        #    if not has_parent:
+        #        if is_folder:
+        #            root_folder.add_folder(entry)
+        #        elif is_doc:
+        #            root_folder.add_doc(entry)
+        
+        #print root_folder.subfolders
+        
+        #for doc in docs:
+        #    print doc
+        #    path = self.gdocs_folder +'/'+ doc.title.text.replace('/', '-') +'.odt'
+        #    try:
+        #        if doc.etag != self.db.getEtag(doc.resource_id.text):
+        #            print 'writing:', path
+        #            self.client.Export(doc, path)
+        #            self.db.addDoc(doc, path)
+        #        else:
+        #            pass
+        #    except:
+        #        print 'skipped:', path
+        #        os.remove(path)
         
     def updateDoc(self, path):
         """
@@ -282,6 +394,7 @@ if __name__ == "__main__":
         daemon.stop()
         print 'stopped'
     elif 'restart' == args.command:
+        daemon.sync.authorize()
         daemon.restart()
     elif 'debug' == args.command:
         daemon.sync.authorize()
