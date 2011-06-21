@@ -14,6 +14,8 @@ import sqlite3
 import urllib
 from daemon import Daemon
 
+import exceptions
+
 class DocDb(object):
     """
     Interface for interacting with the local sqlite databse
@@ -189,9 +191,32 @@ class Folder(object):
         
 class Document(object):
     doc = None
+    path = ''
+    
+    home = os.path.expanduser('~')
+    gdocs_folder = home +'/Google Docs'
+    
+    db_file = gdocs_folder + '/.db'
 
     def __init__(self, doc, parent):
         self.doc = doc
+        self.parent = parent
+        self.path = parent.gdocs_folder + parent.path + doc.title.text.replace('/', '-') + '.odt'
+        self.client = parent.client
+        self.db = DocDb()
+        self.db.setDb(self.db_file)
+        
+        # make sure it exists on the file system
+        self.save()
+        
+    def save(self):
+        if self.doc.etag != self.db.getEtag(self.doc.resource_id.text):
+            print 'writing:', self.path
+            self.client.Export(self.doc, self.path)
+            self.db.addDoc(self.doc, self.path)
+        else:
+            # nothing to see here, move along
+            pass
         
     def __repr__(self):
         return self.doc.title.text
@@ -228,9 +253,8 @@ class DocSync(object):
         """
         proxy method to get everything started.
         """
-        #self.authorize()
         self._getEverything()
-        #self._watchFolder()
+        self._watchFolder()
         
         #TODO: make this work
         #self._setPeriodicSync()
@@ -250,7 +274,6 @@ class DocSync(object):
     def authorize(self):
         """
         Make sure the user is authorized. Ask for username/password if needed.
-        @TODO: add a UI so that the daemon can get auth info.
         """
         self.db.setDb(self.db_file)
         token = self.db.getToken()
@@ -269,50 +292,8 @@ class DocSync(object):
         Downloads all the docs if the remote version is different than the local
         version.
         """
-        self.db.setDb(self.db_file)
-        #feed = self.client.GetDocList(uri='/feeds/default/private/full/folder%3Aroot/contents/-/all')
-        
         # build folder structure
         root_folder = Folder(None, None, self.client)
-        #for entry in feed.entry:
-        #    is_folder = False
-        #    is_doc = False
-        #    has_parent = False
-        
-            # find out if current entry is a folder
-        #    for cat in entry.category:
-        #        if cat.label == 'folder':
-        #            is_folder = True
-        #        elif cat.label == 'document':
-        #            is_doc = True
-                    
-            # find out if current entry has a parent
-        #    for link in entry.link:
-        #        if link.rel == 'http://schemas.google.com/docs/2007#parent':
-        #            has_parent = True
-                    
-            # if no parent and is a folder, add as child folder of root
-        #    if not has_parent:
-        #        if is_folder:
-        #            root_folder.add_folder(entry)
-        #        elif is_doc:
-        #            root_folder.add_doc(entry)
-        
-        #print root_folder.subfolders
-        
-        #for doc in docs:
-        #    print doc
-        #    path = self.gdocs_folder +'/'+ doc.title.text.replace('/', '-') +'.odt'
-        #    try:
-        #        if doc.etag != self.db.getEtag(doc.resource_id.text):
-        #            print 'writing:', path
-        #            self.client.Export(doc, path)
-        #            self.db.addDoc(doc, path)
-        #        else:
-        #            pass
-        #    except:
-        #        print 'skipped:', path
-        #        os.remove(path)
         
     def updateDoc(self, path):
         """
