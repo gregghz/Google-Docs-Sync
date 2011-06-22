@@ -271,6 +271,7 @@ class DocSync(object):
         notifier = pyinotify.ThreadedNotifier(wm, handler)
         notifier.start()
         
+        
     def authorize(self):
         """
         Make sure the user is authorized. Ask for username/password if needed.
@@ -353,34 +354,46 @@ class SyncDaemon(Daemon):
         self.sync.start()
 
 if __name__ == "__main__":
-    daemon = SyncDaemon()
-    parser = argparse.ArgumentParser()
-    
-    parser.add_argument('command',
-                        action='store',
-                        choices=['start','stop','restart','debug','pull'],
-                        help='What to do. Use debug to start in the foreground')
+    parser = argparse.ArgumentParser(description='Manually or automatically sync your Google Docs')
+                        
+    parser.add_argument('-d', '--daemon',
+                        action='store_true',
+                        help='Start the sync in daemon mode (ignores all other options)')
+    parser.add_argument('-s', '--stop-daemon',
+                        action='store_true',
+                        help='Stop the running daemon (ignores all other options)')
+    parser.add_argument('-r', '--restart-daemon',
+                        action='store_true',
+                        help='Restart the running daemon (ignores all other options)')
+    parser.add_argument('-p', '--pull',
+                        action='store_true',
+                        help='Download all documents from the server one time')
     
     args = parser.parse_args()
     
     # Execute the command
-    if 'start' == args.command:
+    if args.daemon:
+        daemon = SyncDaemon()
         daemon.sync.authorize()
         daemon.start()
-    elif 'stop' == args.command:
+    elif args.stop_daemon:
+        daemon = SyncDaemon()
         daemon.stop()
         print 'stopped'
-    elif 'restart' == args.command:
+    elif args.restart_daemon:
+        daemon = SyncDaemon()
         daemon.sync.authorize()
         daemon.restart()
-    elif 'debug' == args.command:
-        daemon.sync.authorize()
-        daemon.run()
-    elif 'pull' == args.command: #do not run the daemon, but rather just download the documents
-        daemon.sync.authorize()
-        daemon.sync.getEverything()
-    else:
-        print "Unkown Command"
-        sys.exit(2)
+    else: # the following is for options that allow more than one option at a time
+        sync = DocSync() # need the non-daemon form for all of the following
+        if args.pull:
+            sync.authorize()
+            daemon.sync.getEverything()
+        else: # the default if no options are given
+            sync.authorize()
+            #try:
+            sync.start()
+            #except KeyboardInterrupt:
+            #sys.exit(0)
     sys.exit(0)
 
