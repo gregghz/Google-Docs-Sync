@@ -1,42 +1,16 @@
-Functionality
--------------
-Google-Docs-Sync will download all documents from your Google account into .odt files. Any documents you edit and save will be uploaded again.
+usage: main.py [-h] [-d] [-s] [-r] [-p] [--username USERNAME]
+               [--password PASSWORD]
 
-Getting Started
-----------------
-usage: main.py [-h] {start,stop,restart,debug}
-
-positional arguments:
-  {start,stop,restart,debug}
-start: Start the sync in the background
-debug: Start the sync in the foreground
-stop: Stop the sync?
-restart: Restart the sync? What does this do?
+Manually or automatically sync your Google Docs. Currently it's a one way sync. 
+If you make changes locally while in daemon mode (-d), they will show up remotely,
+but remote changes aren't pulled down until the daemon is restarted.
 
 optional arguments:
   -h, --help            show this help message and exit
-
-You should expect to see the following output:
-
-doriad@daviddesktop:~/Google-Docs-Sync$ ./main.py debug
-Username: david.l.doria
-Password:
-writing: /home/doriad/Google Docs/Test Document.odt
-started
-
-(it seems to pause here, is it supposed to continue running, waiting for local or remote files to change?)
-
-Linux
------------
-Google-Docs-Sync will create a local folder called "Google Docs" in your ~/ directory. In linux that would be home/[username], and in OS X that would be User/[username]. In Windows, I *believe* that is your My Documents folder. However, this will fail when being run under OS X or Windows. Neither of those platforms have the requisite inotify service. Inotify provides filesystem monitoring so that the sync can detect when a local file has been changed and then send those changes to Google docs.
-
-Windows
-----------------
-I believe it will completely fail because Windows doesn't support the daemon module.
-
-OS X
------
-It might properly download all the docs, but when it tries to setup the bits to watch the local filesystem, it will fail.
-
-
-I would like support for those platforms. If you have the know how to accomplish this outside of Linux, please let me know!
+  -d, --daemon          Start the sync in daemon mode (ignores all other
+                        options)
+  -s, --stop-daemon     Stop the running daemon (ignores all other options)
+  -r, --restart-daemon  Restart the running daemon (ignores all other options)
+  -p, --pull            Download all documents from the server one time
+  --username USERNAME   Set the username
+  --password PASSWORD   Set the password
