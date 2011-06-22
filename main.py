@@ -272,19 +272,32 @@ class DocSync(object):
         notifier.start()
         
         
-    def authorize(self):
+    def authorize(self, username=None, password=None):
         """
         Make sure the user is authorized. Ask for username/password if needed.
         """
         self.db.setDb(self.db_file)
+        
         token = self.db.getToken()
         if not token:
-            username = raw_input('Username: ')
-            password = getpass()
+            if username is None:
+                username = raw_input('Username: ')
+            if password is None:
+                password = getpass()
+
             self.client.ClientLogin(username, password, self.client.source)
             self.db.saveToken(self.client.auth_token.token_string)
         else:
-            self.client.auth_token = ClientLoginToken(token)
+            # we still need to use username/password if they passed one in
+            if username is not None or password is not None:
+                if username is None:
+                    username = raw_input('Username: ')
+                if password is None:
+                    password = getpass()
+                self.client.ClientLogin(username, password, self.client.source)
+                self.db.saveToken(self.client.auth_token.token_string)
+            else:
+                self.client.auth_token = ClientLoginToken(token)
             
         self.authd = True
             
@@ -368,13 +381,22 @@ if __name__ == "__main__":
     parser.add_argument('-p', '--pull',
                         action='store_true',
                         help='Download all documents from the server one time')
+                        
+    parser.add_argument('--username',
+                        action='store',
+                        default=None,
+                        help='Set the username')
+    parser.add_argument('--password',
+                        action='store',
+                        default=None,
+                        help='Set the password')
     
     args = parser.parse_args()
     
     # Execute the command
     if args.daemon:
         daemon = SyncDaemon()
-        daemon.sync.authorize()
+        daemon.sync.authorize(args.username, args.password)
         daemon.start()
     elif args.stop_daemon:
         daemon = SyncDaemon()
@@ -382,18 +404,16 @@ if __name__ == "__main__":
         print 'stopped'
     elif args.restart_daemon:
         daemon = SyncDaemon()
-        daemon.sync.authorize()
+        daemon.sync.authorize(args.username, args.password)
         daemon.restart()
     else: # the following is for options that allow more than one option at a time
         sync = DocSync() # need the non-daemon form for all of the following
         if args.pull:
-            sync.authorize()
+            sync.authorize(args.username, args.password)
             daemon.sync.getEverything()
         else: # the default if no options are given
-            sync.authorize()
-            #try:
+            sync.authorize(args.username, args.password)
             sync.start()
-            #except KeyboardInterrupt:
-            #sys.exit(0)
+
     sys.exit(0)
 
