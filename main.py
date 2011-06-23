@@ -198,11 +198,16 @@ class Document(object):
     
     db_file = gdocs_folder + '/.db'
 
-    def __init__(self, doc, parent):
+    def __init__(self, doc, parent=None, client=None, force_download=False):
         self.doc = doc
+        self.force = force_download
         self.parent = parent
-        self.path = parent.gdocs_folder + parent.path + doc.title.text.replace('/', '-') + '.odt'
-        self.client = parent.client
+        if self.parent is None:
+            self.path = self.gdocs_folder + '/' + doc.title.text.replace('/', '-') + '.odt'
+            self.client = client
+        else:
+            self.path = parent.gdocs_folder + parent.path + doc.title.text.replace('/', '-') + '.odt'
+            self.client = parent.client
         self.db = DocDb()
         self.db.setDb(self.db_file)
         
@@ -210,7 +215,7 @@ class Document(object):
         self.save()
         
     def save(self):
-        if self.doc.etag != self.db.getEtag(self.doc.resource_id.text):
+        if self.doc.etag != self.db.getEtag(self.doc.resource_id.text) or self.force:
             print 'writing:', self.path
             self.client.Export(self.doc, self.path)
             self.db.addDoc(self.doc, self.path)
@@ -303,13 +308,29 @@ class DocSync(object):
             
         self.authd = True
             
-    def getEverything(self):
+    def getEverything(self, title=None):
         """
         Downloads all the docs if the remote version is different than the local
         version.
         """
-        # build folder structure
-        root_folder = Folder(None, None, self.client)
+        if title is None:
+            # build folder structure
+            root_folder = Folder(None, None, self.client)
+        else:
+            feed = self.client.GetDocList(uri='/feeds/default/private/full?title='+title+'&title-exact=true')
+            # run over each entry
+            for e in feed.entry:
+                is_doc = False
+            
+                # use this loop to find out if we're in a doc or folder
+                # @TODO: add PDFs and other types of files
+                for cat in e.category:
+                    if cat.label == 'document':
+                        is_doc = True
+
+                # add the doc as appropriate
+                if is_doc:
+                    Document(e, None, self.client, True)
         
     def updateDoc(self, path):
         """
@@ -383,6 +404,9 @@ if __name__ == "__main__":
     parser.add_argument('-p', '--pull',
                         action='store_true',
                         help='Download all documents from the server one time')
+    parser.add_argument('-f', '--file',
+                        action='store',
+                        help='Download a single file by title')
                         
     parser.add_argument('--username',
                         action='store',
@@ -408,13 +432,14 @@ if __name__ == "__main__":
         daemon = SyncDaemon()
         daemon.sync.authorize(args.username, args.password)
         daemon.restart()
-    else: # the following is for options that allow more than one option at a time
+    else: # the following is for non-daemon options. possibly more than one option at a time
         sync = DocSync() # need the non-daemon form for all of the following
+        sync.authorize(args.username, args.password)
         if args.pull:
-            sync.authorize(args.username, args.password)
-            daemon.sync.getEverything()
+            sync.getEverything()
+        elif args.file is not None:
+            sync.getEverything(args.file)
         else: # the default if no options are given
-            sync.authorize(args.username, args.password)
             sync.start()
 
     sys.exit(0)
