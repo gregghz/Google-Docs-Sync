@@ -259,7 +259,7 @@ class DocSync(object):
         #TODO: make this work
         #self._setPeriodicSync()
         
-        print 'started'
+        print 'stopped'
         
     def _watchFolder(self):
         """
@@ -267,10 +267,12 @@ class DocSync(object):
         """
         wm = pyinotify.WatchManager()
         wm.add_watch(self.gdocs_folder, pyinotify.IN_MODIFY, rec=True)
-        handler = EventHandler(self)
-        notifier = pyinotify.ThreadedNotifier(wm, handler)
-        notifier.start()
         
+        handler = EventHandler(self)
+        notifier = pyinotify.Notifier(wm, handler)
+        
+        print 'waiting for changes . . .'
+        notifier.loop()
         
     def authorize(self, username=None, password=None):
         """
