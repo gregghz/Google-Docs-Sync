@@ -4,6 +4,7 @@ import gdata.docs.data
 from gdata.docs.data import MIMETYPES
 import gdata.docs.client
 from gdata.gauth import ClientLoginToken
+from gdata.client import Unauthorized
 
 from signal import SIGTERM
 from getpass import getpass
@@ -239,6 +240,8 @@ class DocSync(object):
     db = DocDb()
     authd = False
     
+    need_new_token = False
+    
     def __init__(self):
         """
         just setting stuff up.
@@ -258,8 +261,12 @@ class DocSync(object):
         """
         proxy method to get everything started.
         """
-        self.getEverything()
-        self._watchFolder()
+        try:
+            self.getEverything()
+            self._watchFolder()
+        except Unauthorized, e:
+            self.authorize()
+            self.start()
         
         #TODO: make this work
         #self._setPeriodicSync()
@@ -286,7 +293,7 @@ class DocSync(object):
         self.db.setDb(self.db_file)
         
         token = self.db.getToken()
-        if not token:
+        if not token or self.need_new_token:
             if username is None:
                 username = raw_input('Username: ')
             if password is None:
@@ -294,6 +301,7 @@ class DocSync(object):
 
             self.client.ClientLogin(username, password, self.client.source)
             self.db.saveToken(self.client.auth_token.token_string)
+            self.need_new_token = False
         else:
             # we still need to use username/password if they passed one in
             if username is not None or password is not None:
@@ -313,24 +321,29 @@ class DocSync(object):
         Downloads all the docs if the remote version is different than the local
         version.
         """
-        if title is None:
-            # build folder structure
-            root_folder = Folder(None, None, self.client)
-        else:
-            feed = self.client.GetDocList(uri='/feeds/default/private/full?title='+title+'&title-exact=true')
-            # run over each entry
-            for e in feed.entry:
-                is_doc = False
-            
-                # use this loop to find out if we're in a doc or folder
-                # @TODO: add PDFs and other types of files
-                for cat in e.category:
-                    if cat.label == 'document':
-                        is_doc = True
+        try:
+            if title is None:
+                # build folder structure
+                root_folder = Folder(None, None, self.client)
+            else:
+                feed = self.client.GetDocList(uri='/feeds/default/private/full?title='+title+'&title-exact=true')
+                # run over each entry
+                for e in feed.entry:
+                    is_doc = False
+                
+                    # use this loop to find out if we're in a doc or folder
+                    # @TODO: add PDFs and other types of files
+                    for cat in e.category:
+                        if cat.label == 'document':
+                            is_doc = True
 
-                # add the doc as appropriate
-                if is_doc:
-                    Document(e, None, self.client, True)
+                    # add the doc as appropriate
+                    if is_doc:
+                        Document(e, None, self.client, True)
+        except Unauthorized, e:
+            print 'token failed, getting new token . . .'
+            self.need_new_token = True
+            raise e
         
     def updateDoc(self, path):
         """
