@@ -1,4 +1,4 @@
-usage: main.py [-h] [-d] [-s] [-r] [-p] [--username USERNAME]
+usage: main.py [-h] [-d] [-s] [-r] [-p] [-f FILE] [--username USERNAME]
                [--password PASSWORD]
 
 Manually or automatically sync your Google Docs. Currently it's a one way sync. 
@@ -12,5 +12,6 @@ optional arguments:
   -s, --stop-daemon     Stop the running daemon (ignores all other options)
   -r, --restart-daemon  Restart the running daemon (ignores all other options)
   -p, --pull            Download all documents from the server one time
+  -f FILE, --file FILE  Download a single file by title
   --username USERNAME   Set the username
   --password PASSWORD   Set the password
