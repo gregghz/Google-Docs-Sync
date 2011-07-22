@@ -316,7 +316,7 @@ class DocSync(object):
             
         self.authd = True
             
-    def getEverything(self, title=None):
+    def getEverything(self, title=None, exact_match=False):
         """
         Downloads all the docs if the remote version is different than the local
         version.
@@ -326,7 +326,10 @@ class DocSync(object):
                 # build folder structure
                 root_folder = Folder(None, None, self.client)
             else:
-                feed = self.client.GetDocList(uri='/feeds/default/private/full?title='+title+'&title-exact=true')
+                exact = 'false'
+                if exact_match:
+                    exact = 'true'
+                feed = self.client.GetDocList(uri='/feeds/default/private/full?title='+title+'&title-exact='+exact)
                 # run over each entry
                 for e in feed.entry:
                     is_doc = False
@@ -420,6 +423,9 @@ if __name__ == "__main__":
     parser.add_argument('-f', '--file',
                         action='store',
                         help='Download a single file by title')
+    parser.add_argument('-x', '--exact',
+                        action='store_true',
+                        help='Always used with --file. Tells Watcher to force exact filename matches')
                         
     parser.add_argument('--username',
                         action='store',
@@ -451,7 +457,10 @@ if __name__ == "__main__":
         if args.pull:
             sync.getEverything()
         elif args.file is not None:
-            sync.getEverything(args.file)
+            if args.exact:
+                sync.getEverything(title=args.file, exact_match=True)
+            else:
+                sync.getEverything(title=args.file)
         else: # the default if no options are given
             sync.start()
 
